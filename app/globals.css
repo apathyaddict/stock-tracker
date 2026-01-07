@@ -164,6 +164,10 @@
     line-height: 1.6;
   }
 
+  input, textarea, select {
+    @apply border border-input;
+  }
+
   @media (min-width: 768px) {
     body {
       font-size: 18px;

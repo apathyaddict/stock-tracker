@@ -15,7 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { DollarSign, BarChart3, Activity, TrendingUp } from "lucide-react";
-import { TransactionInputSection } from "@/components/TransactionInputSection";
+import { TransactionInputSection, addTransaction } from "@/components/TransactionInputSection";
+import { PositionsTable } from "@/components/PositionsTable";
 
 interface Holding {
   symbol: string;
@@ -23,6 +24,11 @@ interface Holding {
   avgPrice: number;
   totalValue: number;
   lastTransaction: Date;
+  status: 'Open' | 'Closed';
+  sellPrice?: number;
+  buyDate?: Date;
+  sellDate?: Date;
+  profitLoss?: number;
 }
 
 export default async function Dashboard() {
@@ -45,41 +51,75 @@ export default async function Dashboard() {
   // Calculate current holdings by grouping transactions by symbol
   const holdingsMap = new Map<string, Holding>();
 
+  // Group transactions by symbol first
+  const transactionsBySymbol = new Map<string, typeof transactions>();
   for (const transaction of transactions) {
     const symbol = transaction.symbol;
-    const quantity = transaction.quantity;
-    const price = Number(transaction.price);
-
-    if (holdingsMap.has(symbol)) {
-      const holding = holdingsMap.get(symbol)!;
-      // Calculate new average price using weighted average
-      const newTotalQuantity = holding.totalQuantity + quantity;
-      if (newTotalQuantity !== 0) {
-        const newTotalValue = holding.totalValue + (quantity * price);
-        holding.totalQuantity = newTotalQuantity;
-        holding.avgPrice = newTotalValue / Math.abs(newTotalQuantity);
-        holding.totalValue = newTotalValue;
-        holding.lastTransaction = transaction.date > holding.lastTransaction ? transaction.date : holding.lastTransaction;
-      } else {
-        // If quantity becomes 0, remove the holding
-        holdingsMap.delete(symbol);
-      }
-    } else {
-      holdingsMap.set(symbol, {
-        symbol,
-        totalQuantity: quantity,
-        avgPrice: price,
-        totalValue: quantity * price,
-        lastTransaction: transaction.date,
-      });
+    if (!transactionsBySymbol.has(symbol)) {
+      transactionsBySymbol.set(symbol, []);
     }
+    transactionsBySymbol.get(symbol)!.push(transaction);
   }
 
-  const holdings = Array.from(holdingsMap.values()).filter(h => h.totalQuantity > 0);
+  // Process each symbol
+  for (const [symbol, symbolTransactions] of transactionsBySymbol) {
+    // Sort transactions by date for this symbol
+    symbolTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-  // Calculate portfolio summary
-  const totalValue = holdings.reduce((sum, holding) => sum + holding.totalValue, 0);
-  const totalHoldings = holdings.length;
+    let totalQuantity = 0;
+    let totalValue = 0;
+    let buyDate: Date | undefined;
+    let sellDate: Date | undefined;
+    let sellPrice: number | undefined;
+
+    for (const transaction of symbolTransactions) {
+      const quantity = transaction.quantity;
+      const price = Number(transaction.price);
+
+      // Track buy date (first positive transaction)
+      if (quantity > 0 && !buyDate) {
+        buyDate = transaction.date;
+      }
+
+      // Track sell date and price (when selling)
+      if (quantity < 0 && !sellDate) {
+        sellDate = transaction.date;
+        sellPrice = price;
+      }
+
+      // Only add buy transactions to total value for average price calculation
+      if (quantity > 0) {
+        totalValue += quantity * price;
+      }
+      
+      totalQuantity += quantity;
+    }
+
+    const totalBoughtQuantity = symbolTransactions.reduce((sum, t) => sum + (t.quantity > 0 ? t.quantity : 0), 0);
+    const avgPrice = totalBoughtQuantity > 0 ? totalValue / totalBoughtQuantity : 0;
+    const status: 'Open' | 'Closed' = totalQuantity === 0 ? 'Closed' : 'Open';
+    const profitLoss = (status === 'Closed' && sellPrice) ? (sellPrice - avgPrice) * totalBoughtQuantity : undefined;
+
+    holdingsMap.set(symbol, {
+      symbol,
+      totalQuantity: Math.abs(totalQuantity),
+      avgPrice,
+      totalValue: Math.abs(totalValue),
+      lastTransaction: symbolTransactions[symbolTransactions.length - 1].date,
+      status,
+      sellPrice,
+      buyDate,
+      sellDate,
+      profitLoss,
+    });
+  }
+
+  const holdings = Array.from(holdingsMap.values());
+
+  // Calculate portfolio summary (only open positions)
+  const openHoldings = holdings.filter(h => h.status === 'Open');
+  const totalValue = openHoldings.reduce((sum, holding) => sum + holding.totalValue, 0);
+  const totalHoldings = openHoldings.length;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -148,53 +188,14 @@ export default async function Dashboard() {
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-2">
               <TrendingUp className="h-6 w-6" />
-              Current Holdings
+              All Positions
             </CardTitle>
             <CardDescription>
-              Your current stock positions and average cost basis
+              Your current holdings and historical positions with buy/sell prices
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {holdings.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground text-lg mb-4">
-                  You don't have any stock holdings yet.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {holdings.map((holding) => (
-                  <div
-                    key={holding.symbol}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div>
-                        <h3 className="text-xl font-semibold">{holding.symbol}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {holding.totalQuantity} shares
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right space-y-1">
-                      <div className="text-lg font-semibold">
-                        ${holding.totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Avg: ${holding.avgPrice.toFixed(2)}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center space-x-2">
-                      <Badge variant="secondary">
-                        {holding.totalQuantity} shares
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <PositionsTable holdings={holdings} addTransaction={addTransaction} />
           </CardContent>
         </Card>
       </div>

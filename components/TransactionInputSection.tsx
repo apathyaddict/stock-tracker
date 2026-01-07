@@ -69,6 +69,8 @@ async function addTransaction(formData: FormData) {
   revalidatePath("/");
 }
 
+export { addTransaction };
+
 export function TransactionInputSection() {
   return (
     <Card>
