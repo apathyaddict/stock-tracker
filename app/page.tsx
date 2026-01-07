@@ -15,6 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { DollarSign, BarChart3, Activity, TrendingUp } from "lucide-react";
+import { TransactionInputSection } from "@/components/TransactionInputSection";
 
 interface Holding {
   symbol: string;
@@ -128,7 +129,7 @@ export default async function Dashboard() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <Activity className="h-4 w-4" />
-                Recent Transactions
+                Total Transactions
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -139,6 +140,8 @@ export default async function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        <TransactionInputSection />
 
         {/* Current Holdings */}
         <Card>
