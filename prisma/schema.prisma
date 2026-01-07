@@ -19,6 +19,7 @@ model User {
   email    String  @unique
   password String
   posts    Post[]
+  transactions Transaction[]
 }
 
 model Post {
@@ -30,4 +31,14 @@ model Post {
   published Boolean  @default(false)
   authorId  String?
   author    User?    @relation(fields: [authorId], references: [id])
+}
+
+model Transaction {
+  id       Int      @id @default(autoincrement())
+  symbol   String
+  quantity Int
+  price    Decimal
+  date     DateTime
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
 }
