@@ -25,20 +25,8 @@ export default function Header() {
           Stock Tracker
         </Link>
         <div className="flex items-center space-x-4">
-          <Button asChild>
-            <Link href="/posts">Posts</Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href="/transactions">Transactions</Link>
-          </Button>
           {session ? (
             <>
-              <Button asChild>
-                <Link href="/posts/new">New Post</Link>
-              </Button>
-              <Button asChild variant="secondary">
-                <Link href="/transactions/new">New Transaction</Link>
-              </Button>
               <div className="flex items-center space-x-4">
                 <div className="text-sm text-muted-foreground">
                   {session.user?.name && <div>{session.user.name}</div>}
