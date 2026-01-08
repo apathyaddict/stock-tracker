@@ -46,10 +46,7 @@ export default async function Dashboard() {
     where: {
       userId: session.user.id,
     },
-    orderBy: [
-      { buyDate: "desc" },
-      { sellDate: "desc" },
-    ],
+    orderBy: [{ buyDate: "desc" }, { sellDate: "desc" }],
   });
 
   // Calculate current holdings by grouping transactions by symbol
@@ -83,7 +80,8 @@ export default async function Dashboard() {
 
     for (const transaction of symbolTransactions) {
       const quantity = transaction.quantity;
-      const price = Number(transaction.price);
+      // Use buyPrice for buys, sellPrice for sells, always convert to number
+      const price = Number(transaction.buyPrice ?? transaction.sellPrice ?? 0);
 
       // Track buy date (first positive transaction)
       if (quantity > 0 && !buyDate) {
@@ -109,28 +107,35 @@ export default async function Dashboard() {
       0
     );
     const avgPrice =
-      totalBoughtQuantity > 0 ? totalValue / totalBoughtQuantity : 0;
+      totalBoughtQuantity > 0
+        ? Number((totalValue / totalBoughtQuantity).toFixed(2))
+        : 0;
     const status: "Open" | "Closed" = totalQuantity === 0 ? "Closed" : "Open";
     const profitLoss =
       status === "Closed" && sellPrice
-        ? (sellPrice - avgPrice) * totalBoughtQuantity
+        ? Number(((sellPrice - avgPrice) * totalBoughtQuantity).toFixed(2))
         : undefined;
 
     holdingsMap.set(symbol, {
       symbol,
       totalQuantity: Math.abs(totalQuantity),
-      avgPrice,
-      totalValue: Math.abs(totalValue),
-      lastTransaction: symbolTransactions[symbolTransactions.length - 1].date,
+      avgPrice: Number(avgPrice.toFixed(2)),
+      totalValue: Number(Math.abs(totalValue).toFixed(2)),
+      lastTransaction:
+        symbolTransactions[symbolTransactions.length - 1].buyDate ??
+        symbolTransactions[symbolTransactions.length - 1].sellDate ??
+        new Date(),
       status,
-      sellPrice,
+      sellPrice: sellPrice ? Number(sellPrice.toFixed(2)) : undefined,
       buyDate,
       sellDate,
       profitLoss,
     });
   }
 
-  const holdings = Array.from(holdingsMap.values()).sort((a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime());
+  const holdings = Array.from(holdingsMap.values()).sort(
+    (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime()
+  );
 
   // Calculate portfolio summary (only open positions)
   const openHoldings = holdings.filter((h) => h.status === "Open");
