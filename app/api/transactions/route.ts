@@ -1,8 +1,41 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import prisma from "@/lib/prisma";
+import { authOptions } from "@/auth";
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const transactions = await prisma.transaction.findMany({
+      where: {
+        userId: session.user.id,
+      },
+      orderBy: [{ buyDate: "desc" }, { sellDate: "desc" }],
+    });
+
+    return NextResponse.json(transactions);
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch transactions" },
+      { status: 500 }
+    );
+  }
+}
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const data = await req.json();
     const {
       symbol,
@@ -12,7 +45,6 @@ export async function POST(req: Request) {
       sellPrice,
       sellDate,
       type,
-      userId,
     } = data;
 
     // Save transaction to database
@@ -25,7 +57,7 @@ export async function POST(req: Request) {
         sellPrice: sellPrice ? Number(sellPrice) : undefined,
         sellDate: sellDate ? new Date(sellDate) : undefined,
         type,
-        userId,
+        userId: session.user.id,
       },
     });
 

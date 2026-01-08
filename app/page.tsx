@@ -1,5 +1,3 @@
-export const dynamic = "force-dynamic"; // This disables SSG and ISR
-
 import { PositionsTable } from "@/components/PositionsTable";
 import { StockPriceOverview } from "@/components/StockPriceOverview";
 import {
@@ -30,9 +28,9 @@ interface Holding {
   lastTransaction: Date;
   status: "Open" | "Closed";
   sellPrice?: number;
-  buyDate?: Date;
-  sellDate?: Date;
-  profitLoss?: number;
+  buyDate: Date | undefined;
+  sellDate: Date | undefined;
+  profitLoss: number | undefined;
 }
 
 export default async function Dashboard() {
@@ -157,7 +155,7 @@ export default async function Dashboard() {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold">Stock Tracker Dashboard</h1>
+            <h1 className="text-4xl font-bold">My Dashboard</h1>
             <p className="text-muted-foreground text-lg mt-2">
               Welcome back, {session.user.name || session.user.email}
             </p>
@@ -221,9 +219,9 @@ export default async function Dashboard() {
         {/* Current Holdings */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl flex items-center gap-2">
+            <CardTitle className="flex items-center gap-2">
               <TrendingUp className="h-6 w-6" />
-              Portfolio
+              <h2 className="card-title-main">Portfolio</h2>
             </CardTitle>
             <CardDescription>
               Your current holdings and historical positions with buy/sell

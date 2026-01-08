@@ -5,7 +5,6 @@ import { useDebounce } from "@/lib/hooks/useDebounce";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Search } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
 import {
   searchStocks,
   getStockQuote,
@@ -32,18 +31,36 @@ export function StockSearch({
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const debouncedValue = useDebounce(value, 500);
 
-  const {
-    data: searchResults,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["stockSearch", debouncedValue],
-    queryFn: () => searchStocks(debouncedValue),
-    enabled: debouncedValue.length >= 2,
-    staleTime: 1000 * 60 * 10, // 10 minutes
-  });
+  useEffect(() => {
+    const search = async () => {
+      if (debouncedValue.length < 2) {
+        setSearchResults([]);
+        setError(null);
+        return;
+      }
+
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const results = await searchStocks(debouncedValue);
+        setSearchResults(results);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Search failed");
+        setSearchResults([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    search();
+  }, [debouncedValue]);
 
   useEffect(() => {
     setSelectedIndex(-1);
@@ -145,9 +162,7 @@ export function StockSearch({
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-popover border border-border rounded-md shadow-lg max-h-60 overflow-auto">
           {error ? (
-            <div className="p-3 text-sm text-destructive">
-              {error instanceof Error ? error.message : "Search failed"}
-            </div>
+            <div className="p-3 text-sm text-destructive">{error}</div>
           ) : isLoading ? (
             <div className="p-3 text-center">
               <Loader2 className="h-4 w-4 animate-spin mx-auto" />

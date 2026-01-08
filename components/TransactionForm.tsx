@@ -13,6 +13,9 @@ import {
 import { useState, useEffect } from "react";
 import { StockSearch } from "./StockSearch";
 import { Loader2, Plus } from "lucide-react";
+import { toast } from "sonner";
+import { useToast } from "./Toast";
+import { getErrorMessage } from "./ErrorBoundary";
 
 interface TransactionFormProps {
   addTransaction: (formData: FormData) => Promise<void>;
@@ -40,11 +43,11 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
 
     // Validate required fields
     if (!symbol.trim()) {
-      alert("Please select a stock symbol");
+      toast.error("Please select a stock symbol");
       return;
     }
     if (!quantity.trim()) {
-      alert("Please enter a quantity");
+      toast.error("Please enter a quantity");
       return;
     }
 
@@ -69,8 +72,10 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
       setPrice("");
       setSelectedStockPrice(null);
       setTotal("0.00");
+      toast.success("Transaction added successfully");
     } catch (error) {
       console.error("Error adding transaction:", error);
+      toast.error("Failed to add transaction");
     } finally {
       setIsLoading(false);
     }

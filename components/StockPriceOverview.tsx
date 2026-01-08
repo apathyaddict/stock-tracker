@@ -172,8 +172,8 @@ export const StockPriceOverview: React.FC<StockPriceOverviewProps> = ({
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
-            <CardTitle className="text-2xl flex items-center gap-2">
-              Stock Price Overview
+            <CardTitle className="flex items-center gap-2">
+              <h3 className="card-title-main">Stock Price Overview</h3>
             </CardTitle>
             <CardDescription>
               Current price and daily change for your portfolio stocks

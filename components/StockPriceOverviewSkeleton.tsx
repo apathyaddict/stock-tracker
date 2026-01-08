@@ -15,7 +15,9 @@ interface StockPriceOverviewSkeletonProps {
   symbols: string[];
 }
 
-export const StockPriceOverviewSkeleton: React.FC<StockPriceOverviewSkeletonProps> = ({ symbols }) => {
+export const StockPriceOverviewSkeleton: React.FC<
+  StockPriceOverviewSkeletonProps
+> = ({ symbols }) => {
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
@@ -26,19 +28,35 @@ export const StockPriceOverviewSkeleton: React.FC<StockPriceOverviewSkeletonProp
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead><Skeleton className="h-4 w-16" /></TableHead>
-              <TableHead><Skeleton className="h-4 w-24" /></TableHead>
-              <TableHead><Skeleton className="h-4 w-16" /></TableHead>
-              <TableHead><Skeleton className="h-4 w-20" /></TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-16" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-24" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-16" />
+              </TableHead>
+              <TableHead>
+                <Skeleton className="h-4 w-20" />
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {symbols.map((symbol) => (
               <TableRow key={symbol}>
-                <TableCell><Skeleton className="h-4 w-12" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-16" /></TableCell>
-                <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-12" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-32" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                  <Skeleton className="h-4 w-24" />
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>

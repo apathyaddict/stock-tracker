@@ -126,9 +126,9 @@ export function TransactionInputSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-2xl flex items-center gap-2">
+        <CardTitle className="flex items-center gap-2">
           <Plus className="h-6 w-6" />
-          Add Transaction
+          <h2 className="card-title-main">Add Transaction</h2>
         </CardTitle>
         <CardDescription>
           Add a buy or sell transaction to your portfolio

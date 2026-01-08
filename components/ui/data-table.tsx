@@ -1,15 +1,15 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import * as React from "react";
 import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
   useReactTable,
-} from "@tanstack/react-table"
+} from "@tanstack/react-table";
 
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -17,12 +17,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"
+} from "@/components/ui/table";
 
 interface DataTableProps<TData, TValue> {
-  columns: ColumnDef<TData, TValue>[]
-  data: TData[]
-  searchColumn?: string
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  searchColumn?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -30,7 +30,7 @@ export function DataTable<TData, TValue>({
   data,
   searchColumn = "symbol",
 }: DataTableProps<TData, TValue>) {
-  const [columnFilters, setColumnFilters] = React.useState<any[]>([])
+  const [columnFilters, setColumnFilters] = React.useState<any[]>([]);
 
   const table = useReactTable({
     data,
@@ -41,14 +41,16 @@ export function DataTable<TData, TValue>({
     state: {
       columnFilters,
     },
-  })
+  });
 
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
         <Input
           placeholder="Filter stocks..."
-          value={(table.getColumn(searchColumn)?.getFilterValue() as string) ?? ""}
+          value={
+            (table.getColumn(searchColumn)?.getFilterValue() as string) ?? ""
+          }
           onChange={(event) =>
             table.getColumn(searchColumn)?.setFilterValue(event.target.value)
           }
@@ -70,7 +72,7 @@ export function DataTable<TData, TValue>({
                             header.getContext()
                           )}
                     </TableHead>
-                  )
+                  );
                 })}
               </TableRow>
             ))}
@@ -78,9 +80,7 @@ export function DataTable<TData, TValue>({
           <TableBody>
             {table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                >
+                <TableRow key={row.id}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
                       {flexRender(
@@ -95,8 +95,7 @@ export function DataTable<TData, TValue>({
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
-                >
+                  className="h-24 text-center">
                   No results.
                 </TableCell>
               </TableRow>
@@ -105,5 +104,5 @@ export function DataTable<TData, TValue>({
         </Table>
       </div>
     </div>
-  )
+  );
 }

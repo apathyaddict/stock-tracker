@@ -1,6 +1,5 @@
 "use client";
 
-import { useQueries } from "@tanstack/react-query";
 import { getStockQuote } from "@/lib/stock-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { toast } from "sonner";
 
 interface Holding {
   symbol: string;
@@ -53,7 +53,9 @@ export function PositionsTable({
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const [currentPrices, setCurrentPrices] = useState<Map<string, string>>(new Map());
+  const [currentPrices, setCurrentPrices] = useState<Map<string, string>>(
+    new Map()
+  );
 
   // Fetch current prices for all holdings
   useEffect(() => {
@@ -69,7 +71,10 @@ export function PositionsTable({
               prices.set(holding.symbol, quote.price);
             }
           } catch (error) {
-            console.error(`Failed to fetch price for ${holding.symbol}:`, error);
+            console.error(
+              `Failed to fetch price for ${holding.symbol}:`,
+              error
+            );
           }
         })
       );
@@ -97,8 +102,10 @@ export function PositionsTable({
       setSellPrice("");
       setSellQuantity("");
       setSelectedHolding(null);
+      toast.success("Position sold successfully");
     } catch (error) {
       console.error("Error selling position:", error);
+      toast.error("Failed to sell position");
     } finally {
       setIsLoading(false);
     }
@@ -115,23 +122,29 @@ export function PositionsTable({
     {
       accessorKey: "symbol",
       header: "Name",
-      cell: ({ row }) => <div className="font-medium">{row.getValue("symbol")}</div>,
+      cell: ({ row }) => (
+        <div className="font-medium">{row.getValue("symbol")}</div>
+      ),
     },
     {
       accessorKey: "avgPrice",
       header: "Buy Price",
-      cell: ({ row }) => <div>${row.getValue<number>("avgPrice").toFixed(2)}</div>,
+      cell: ({ row }) => (
+        <div>${row.getValue<number>("avgPrice").toFixed(2)}</div>
+      ),
     },
     {
       accessorKey: "buyDate",
       header: "Buy Date",
       cell: ({ row }) => {
         const date = row.getValue<Date | undefined>("buyDate");
-        return date ? date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }) : "-";
+        return date
+          ? date.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })
+          : "-";
       },
     },
     {
@@ -144,7 +157,9 @@ export function PositionsTable({
       cell: ({ row }) => {
         const currentPrice = row.original.currentPrice;
         return currentPrice ? (
-          <span className="font-medium">${parseFloat(currentPrice).toFixed(2)}</span>
+          <span className="font-medium">
+            ${parseFloat(currentPrice).toFixed(2)}
+          </span>
         ) : (
           <span className="text-muted-foreground">-</span>
         );
@@ -163,11 +178,13 @@ export function PositionsTable({
       header: "Sell Date",
       cell: ({ row }) => {
         const date = row.getValue<Date | undefined>("sellDate");
-        return date ? date.toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        }) : "-";
+        return date
+          ? date.toLocaleDateString("en-US", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+            })
+          : "-";
       },
     },
     {
@@ -183,7 +200,8 @@ export function PositionsTable({
             ) : (
               <TrendingDown className="h-4 w-4 text-destructive" />
             )}
-            <span className={profitLoss >= 0 ? "text-primary" : "text-destructive"}>
+            <span
+              className={profitLoss >= 0 ? "text-primary" : "text-destructive"}>
               ${Math.abs(profitLoss).toFixed(2)}
             </span>
           </div>
@@ -200,7 +218,9 @@ export function PositionsTable({
         }
 
         const currentPriceNum = parseFloat(currentPrice);
-        const potentialPL = (currentPriceNum - row.original.avgPrice) * row.original.totalQuantity;
+        const potentialPL =
+          (currentPriceNum - row.original.avgPrice) *
+          row.original.totalQuantity;
 
         return (
           <div className="flex items-center gap-1">
@@ -209,7 +229,10 @@ export function PositionsTable({
             ) : (
               <TrendingDown className="h-4 w-4 text-destructive" />
             )}
-            <span className={potentialPL >= 0 ? "text-primary" : "text-destructive"}>
+            <span
+              className={
+                potentialPL >= 0 ? "text-primary" : "text-destructive"
+              }>
               ${Math.abs(potentialPL).toFixed(2)}
             </span>
           </div>
@@ -223,11 +246,11 @@ export function PositionsTable({
         const status = row.getValue("status") as string;
         const isOpen = status === "Open";
         return (
-          <Badge variant={isOpen ? "default" : "secondary"} className="flex items-center gap-1">
+          <Badge
+            variant={isOpen ? "default" : "secondary"}
+            className="flex items-center gap-2">
             {isOpen && (
-              <div
-                className="w-1.5 h-1.5 rounded-full bg-current opacity-80"
-              />
+              <div className="w-2 h-2 rounded-full bg-green-400 opacity-80" />
             )}
             {status}
           </Badge>
@@ -243,8 +266,7 @@ export function PositionsTable({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => openSellDialog(holding)}
-          >
+            onClick={() => openSellDialog(holding)}>
             Sell
           </Button>
         ) : null;
@@ -253,11 +275,12 @@ export function PositionsTable({
   ];
 
   // Update data when currentPrices changes
-  const memoizedData = useMemo(() => 
-    holdings.map((holding) => ({
-      ...holding,
-      currentPrice: currentPrices.get(holding.symbol),
-    })), 
+  const memoizedData = useMemo(
+    () =>
+      holdings.map((holding) => ({
+        ...holding,
+        currentPrice: currentPrices.get(holding.symbol),
+      })),
     [holdings, currentPrices]
   );
 
