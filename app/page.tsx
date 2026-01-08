@@ -1,9 +1,12 @@
 export const dynamic = "force-dynamic"; // This disables SSG and ISR
 
-import prisma from "@/lib/prisma";
-import { redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth";
+import { PositionsTable } from "@/components/PositionsTable";
+import { StockPriceOverview } from "@/components/StockPriceOverview";
+import {
+  TransactionInputSection,
+  addTransaction,
+} from "@/components/TransactionInputSection";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,14 +15,12 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import prisma from "@/lib/prisma";
+import { Activity, BarChart3, DollarSign, TrendingUp } from "lucide-react";
+import { getServerSession } from "next-auth";
 import Link from "next/link";
-import { DollarSign, BarChart3, Activity, TrendingUp } from "lucide-react";
-import {
-  TransactionInputSection,
-  addTransaction,
-} from "@/components/TransactionInputSection";
-import { PositionsTable } from "@/components/PositionsTable";
+import { redirect } from "next/navigation";
+import { authOptions } from "../auth";
 
 interface Holding {
   symbol: string;
@@ -90,7 +91,9 @@ export default async function Dashboard() {
 
       // Track sell date and price (when selling)
       if (quantity < 0 && !sellDate) {
-        sellDate = transaction.sellDate;
+        if (transaction.sellDate) {
+          sellDate = transaction.sellDate;
+        }
         sellPrice = price;
       }
 
@@ -144,6 +147,9 @@ export default async function Dashboard() {
     0
   );
   const totalHoldings = openHoldings.length;
+
+  // Get all unique symbols from holdings
+  const allSymbols = holdings.map((h) => h.symbol);
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -208,6 +214,7 @@ export default async function Dashboard() {
             </CardContent>
           </Card>
         </div>
+        <StockPriceOverview symbols={allSymbols} />
 
         <TransactionInputSection />
 
@@ -216,7 +223,7 @@ export default async function Dashboard() {
           <CardHeader>
             <CardTitle className="text-2xl flex items-center gap-2">
               <TrendingUp className="h-6 w-6" />
-              All Positions
+              Portfolio
             </CardTitle>
             <CardDescription>
               Your current holdings and historical positions with buy/sell

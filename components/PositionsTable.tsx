@@ -6,14 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/ui/data-table";
+import { ColumnDef } from "@tanstack/react-table";
 import {
   Dialog,
   DialogContent,
@@ -24,7 +18,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 interface Holding {
   symbol: string;
@@ -44,6 +38,11 @@ interface PositionsTableProps {
   addTransaction: (formData: FormData) => Promise<void>;
 }
 
+type PositionData = Holding & {
+  currentPrice?: string;
+  potentialPL?: number;
+};
+
 export function PositionsTable({
   holdings,
   addTransaction,
@@ -53,27 +52,32 @@ export function PositionsTable({
   const [sellQuantity, setSellQuantity] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [search, setSearch] = useState("");
-  const [sortField, setSortField] = useState("date");
-  const [sortOrder, setSortOrder] = useState("desc");
+
+  const [currentPrices, setCurrentPrices] = useState<Map<string, string>>(new Map());
 
   // Fetch current prices for all holdings
-  const priceQueries = useQueries({
-    queries: holdings.map((holding) => ({
-      queryKey: ["stockQuote", holding.symbol],
-      queryFn: () => getStockQuote(holding.symbol),
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      enabled: holdings.length > 0,
-    })),
-  });
+  useEffect(() => {
+    const fetchPrices = async () => {
+      if (holdings.length === 0) return;
 
-  // Create a map of symbol to current price
-  const currentPrices = new Map<string, string>();
-  priceQueries.forEach((query, index) => {
-    if (query.data?.price && holdings[index]) {
-      currentPrices.set(holdings[index].symbol, query.data.price);
-    }
-  });
+      const prices = new Map<string, string>();
+      await Promise.all(
+        holdings.map(async (holding) => {
+          try {
+            const quote = await getStockQuote(holding.symbol);
+            if (quote?.price) {
+              prices.set(holding.symbol, quote.price);
+            }
+          } catch (error) {
+            console.error(`Failed to fetch price for ${holding.symbol}:`, error);
+          }
+        })
+      );
+      setCurrentPrices(prices);
+    };
+
+    fetchPrices();
+  }, [holdings]);
 
   const handleSell = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,56 +111,159 @@ export function PositionsTable({
     setIsDialogOpen(true);
   };
 
-  // Filter holdings by search
-  const filteredHoldings = holdings.filter((h) =>
-    h.symbol.toLowerCase().includes(search.toLowerCase())
-  );
+  const columns: ColumnDef<PositionData>[] = [
+    {
+      accessorKey: "symbol",
+      header: "Name",
+      cell: ({ row }) => <div className="font-medium">{row.getValue("symbol")}</div>,
+    },
+    {
+      accessorKey: "avgPrice",
+      header: "Buy Price",
+      cell: ({ row }) => <div>${row.getValue<number>("avgPrice").toFixed(2)}</div>,
+    },
+    {
+      accessorKey: "buyDate",
+      header: "Buy Date",
+      cell: ({ row }) => {
+        const date = row.getValue<Date | undefined>("buyDate");
+        return date ? date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }) : "-";
+      },
+    },
+    {
+      accessorKey: "totalQuantity",
+      header: "Shares",
+    },
+    {
+      id: "currentPrice",
+      header: "Current Price",
+      cell: ({ row }) => {
+        const currentPrice = row.original.currentPrice;
+        return currentPrice ? (
+          <span className="font-medium">${parseFloat(currentPrice).toFixed(2)}</span>
+        ) : (
+          <span className="text-muted-foreground">-</span>
+        );
+      },
+    },
+    {
+      accessorKey: "sellPrice",
+      header: "Sell Price",
+      cell: ({ row }) => {
+        const sellPrice = row.getValue<number | undefined>("sellPrice");
+        return sellPrice ? `$${sellPrice.toFixed(2)}` : "-";
+      },
+    },
+    {
+      accessorKey: "sellDate",
+      header: "Sell Date",
+      cell: ({ row }) => {
+        const date = row.getValue<Date | undefined>("sellDate");
+        return date ? date.toLocaleDateString("en-US", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        }) : "-";
+      },
+    },
+    {
+      accessorKey: "profitLoss",
+      header: "Actual P&L",
+      cell: ({ row }) => {
+        const profitLoss = row.getValue<number | undefined>("profitLoss");
+        if (profitLoss === undefined) return "-";
+        return (
+          <div className="flex items-center gap-1">
+            {profitLoss >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-primary" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-destructive" />
+            )}
+            <span className={profitLoss >= 0 ? "text-primary" : "text-destructive"}>
+              ${Math.abs(profitLoss).toFixed(2)}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      id: "potentialPL",
+      header: "Potential P&L",
+      cell: ({ row }) => {
+        const currentPrice = row.original.currentPrice;
+        if (!currentPrice || row.original.status === "Closed") {
+          return "-";
+        }
 
-  // Sort holdings
-  const sortedHoldings = [...filteredHoldings].sort((a, b) => {
-    let compare = 0;
-    if (sortField === "date") {
-      compare = b.lastTransaction.getTime() - a.lastTransaction.getTime();
-    } else if (sortField === "symbol") {
-      compare = a.symbol.localeCompare(b.symbol);
-    } else if (sortField === "price") {
-      compare = b.avgPrice - a.avgPrice;
-    }
-    return sortOrder === "desc" ? compare : -compare;
-  });
+        const currentPriceNum = parseFloat(currentPrice);
+        const potentialPL = (currentPriceNum - row.original.avgPrice) * row.original.totalQuantity;
 
-  return (
-    <>
-      <div className="flex flex-row justify-between items-center gap-4 mb-4">
-        <Input
-          placeholder="Search by symbol..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xs"
-        />
-        <div className="flex gap-2 items-center">
-          <Label htmlFor="sort-field" className="text-sm">
-            Sort by:
-          </Label>
-          <select
-            id="sort-field"
-            value={sortField}
-            onChange={(e) => setSortField(e.target.value)}
-            className="border rounded px-2 py-1 text-sm"
-            style={{ fontSize: "0.875rem" }}>
-            <option value="date">Date</option>
-            <option value="symbol">Symbol</option>
-            <option value="price">Buy Price</option>
-          </select>
+        return (
+          <div className="flex items-center gap-1">
+            {potentialPL >= 0 ? (
+              <TrendingUp className="h-4 w-4 text-primary" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-destructive" />
+            )}
+            <span className={potentialPL >= 0 ? "text-primary" : "text-destructive"}>
+              ${Math.abs(potentialPL).toFixed(2)}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => {
+        const status = row.getValue("status") as string;
+        const isOpen = status === "Open";
+        return (
+          <Badge variant={isOpen ? "default" : "secondary"} className="flex items-center gap-1">
+            {isOpen && (
+              <div
+                className="w-1.5 h-1.5 rounded-full bg-current opacity-80"
+              />
+            )}
+            {status}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const holding = row.original;
+        return holding.status === "Open" && holding.totalQuantity > 0 ? (
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSortOrder(sortOrder === "desc" ? "asc" : "desc")}>
-            {sortOrder === "desc" ? "↓" : "↑"}
+            onClick={() => openSellDialog(holding)}
+          >
+            Sell
           </Button>
-        </div>
-      </div>
-      {sortedHoldings.length === 0 ? (
+        ) : null;
+      },
+    },
+  ];
+
+  // Update data when currentPrices changes
+  const memoizedData = useMemo(() => 
+    holdings.map((holding) => ({
+      ...holding,
+      currentPrice: currentPrices.get(holding.symbol),
+    })), 
+    [holdings, currentPrices]
+  );
+
+  return (
+    <>
+      {holdings.length === 0 ? (
         <div className="text-center py-12">
           <BarChart3 className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h3 className="text-lg font-medium text-muted-foreground mb-2">
@@ -169,135 +276,7 @@ export function PositionsTable({
           </p>
         </div>
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Buy Price</TableHead>
-              <TableHead>Buy Date</TableHead>
-              <TableHead>Shares</TableHead>
-              <TableHead>Current Price</TableHead>
-              <TableHead>Sell Price</TableHead>
-              <TableHead>Sell Date</TableHead>
-              <TableHead>Actual P&L</TableHead>
-              <TableHead>Potential P&L</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedHoldings.map((holding) => (
-              <TableRow
-                key={holding.symbol}
-                className="cursor-pointer hover:bg-muted/50">
-                <TableCell className="font-medium">{holding.symbol}</TableCell>
-                <TableCell>${holding.avgPrice.toFixed(2)}</TableCell>
-                <TableCell>
-                  {holding.buyDate
-                    ? holding.buyDate.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "-"}
-                </TableCell>
-                <TableCell>{holding.totalQuantity}</TableCell>
-                <TableCell>
-                  {currentPrices.get(holding.symbol) ? (
-                    <span className="font-medium">
-                      ${currentPrices.get(holding.symbol)}
-                    </span>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  {holding.sellPrice ? `$${holding.sellPrice.toFixed(2)}` : "-"}
-                </TableCell>
-                <TableCell>
-                  {holding.sellDate
-                    ? holding.sellDate.toLocaleDateString("en-US", {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "-"}
-                </TableCell>
-                <TableCell>
-                  {holding.profitLoss !== undefined ? (
-                    <div className="flex items-center gap-1">
-                      {holding.profitLoss >= 0 ? (
-                        <TrendingUp className="h-4 w-4 text-primary" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-destructive" />
-                      )}
-                      <span
-                        className={
-                          holding.profitLoss >= 0
-                            ? "text-primary"
-                            : "text-destructive"
-                        }>
-                        ${Math.abs(holding.profitLoss).toFixed(2)}
-                      </span>
-                    </div>
-                  ) : (
-                    "-"
-                  )}
-                </TableCell>
-                <TableCell>
-                  {(() => {
-                    const currentPrice = currentPrices.get(holding.symbol);
-                    if (!currentPrice || holding.status === "Closed") {
-                      return "-";
-                    }
-
-                    // Calculate potential P&L for open positions
-                    const currentPriceNum = parseFloat(currentPrice);
-                    const potentialPL =
-                      (currentPriceNum - holding.avgPrice) *
-                      holding.totalQuantity;
-
-                    return (
-                      <div className="flex items-center gap-1">
-                        {potentialPL >= 0 ? (
-                          <TrendingUp className="h-4 w-4 text-primary" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4 text-destructive" />
-                        )}
-                        <span
-                          className={
-                            potentialPL >= 0
-                              ? "text-primary"
-                              : "text-destructive"
-                          }>
-                          ${Math.abs(potentialPL).toFixed(2)}
-                        </span>
-                      </div>
-                    );
-                  })()}
-                </TableCell>
-                <TableCell>
-                  <Badge
-                    variant={
-                      holding.status === "Open" ? "default" : "secondary"
-                    }>
-                    {holding.status}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {holding.status === "Open" && holding.totalQuantity > 0 && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openSellDialog(holding)}>
-                      Sell
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <DataTable columns={columns} data={memoizedData} />
       )}
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>

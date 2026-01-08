@@ -115,7 +115,7 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
           id="current-price"
           className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
           {selectedStockPrice && selectedStockPrice.trim() !== ""
-            ? `$${selectedStockPrice}`
+            ? `$${parseFloat(selectedStockPrice).toFixed(2)}`
             : " N/A"}
         </div>
       </div>
