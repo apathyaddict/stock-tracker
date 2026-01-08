@@ -68,6 +68,14 @@ To ensure your authentication works properly, you'll also need to set [env vars 
 AUTH_SECRET="RANDOM_32_CHARACTER_STRING"
 ```
 
+For real stock data functionality, you'll need an Alpha Vantage API key:
+
+```bash
+NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY="your_alpha_vantage_api_key"
+```
+
+Get your free API key at: [https://www.alphavantage.co/support/#api-key](https://www.alphavantage.co/support/#api-key)
+
 You can generate a random 32 character string for the `AUTH_SECRET` secret with this command:
 
 ```
@@ -80,6 +88,8 @@ In the end, your entire `.env` file should look similar to this (but using _your
 DATABASE_URL="prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlfa2V5IjoiMWEzMjBiYTEtYjg2Yy00ZTA5LThmZTktZDBhODA3YjQwZjBkIiwidGVuYW50X2lkIjoiY2RhYmM3ZTU1NzdmMmIxMmM0ZTI1Y2IwNWJhZmZhZmU4NjAxNzkxZThlMzhlYjI1NDgwNmIzZjI5NmU1NTkzNiIsImludGVybmFsX3NlY3JldCI6ImI3YmQzMjFhLTY2ODQtNGRiMC05ZWRiLWIyMGE2ZTQ0ZDMwMSJ9.JgKXQBatjjh7GIG3_fRHDnia6bDv8BdwvaX5F-XdBfw"
 
 AUTH_SECRET="gTwLSXFeNWFRpUTmxlRniOfegXYw445pd0k6JqXd7Ag="
+
+NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY="ABC123DEF456"
 ```
 
 ### 3. Migrate the database

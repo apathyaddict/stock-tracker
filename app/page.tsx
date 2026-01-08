@@ -15,7 +15,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { DollarSign, BarChart3, Activity, TrendingUp } from "lucide-react";
-import { TransactionInputSection, addTransaction } from "@/components/TransactionInputSection";
+import {
+  TransactionInputSection,
+  addTransaction,
+} from "@/components/TransactionInputSection";
 import { PositionsTable } from "@/components/PositionsTable";
 
 interface Holding {
@@ -24,7 +27,7 @@ interface Holding {
   avgPrice: number;
   totalValue: number;
   lastTransaction: Date;
-  status: 'Open' | 'Closed';
+  status: "Open" | "Closed";
   sellPrice?: number;
   buyDate?: Date;
   sellDate?: Date;
@@ -43,9 +46,10 @@ export default async function Dashboard() {
     where: {
       userId: session.user.id,
     },
-    orderBy: {
-      date: "desc",
-    },
+    orderBy: [
+      { buyDate: "desc" },
+      { sellDate: "desc" },
+    ],
   });
 
   // Calculate current holdings by grouping transactions by symbol
@@ -64,7 +68,12 @@ export default async function Dashboard() {
   // Process each symbol
   for (const [symbol, symbolTransactions] of transactionsBySymbol) {
     // Sort transactions by date for this symbol
-    symbolTransactions.sort((a, b) => a.date.getTime() - b.date.getTime());
+    symbolTransactions.sort((a, b) => {
+      // Use buyDate for buys, sellDate for sells
+      const aDate = a.buyDate ?? a.sellDate;
+      const bDate = b.buyDate ?? b.sellDate;
+      return (aDate?.getTime?.() ?? 0) - (bDate?.getTime?.() ?? 0);
+    });
 
     let totalQuantity = 0;
     let totalValue = 0;
@@ -78,12 +87,12 @@ export default async function Dashboard() {
 
       // Track buy date (first positive transaction)
       if (quantity > 0 && !buyDate) {
-        buyDate = transaction.date;
+        buyDate = transaction.buyDate;
       }
 
       // Track sell date and price (when selling)
       if (quantity < 0 && !sellDate) {
-        sellDate = transaction.date;
+        sellDate = transaction.sellDate;
         sellPrice = price;
       }
 
@@ -91,14 +100,21 @@ export default async function Dashboard() {
       if (quantity > 0) {
         totalValue += quantity * price;
       }
-      
+
       totalQuantity += quantity;
     }
 
-    const totalBoughtQuantity = symbolTransactions.reduce((sum, t) => sum + (t.quantity > 0 ? t.quantity : 0), 0);
-    const avgPrice = totalBoughtQuantity > 0 ? totalValue / totalBoughtQuantity : 0;
-    const status: 'Open' | 'Closed' = totalQuantity === 0 ? 'Closed' : 'Open';
-    const profitLoss = (status === 'Closed' && sellPrice) ? (sellPrice - avgPrice) * totalBoughtQuantity : undefined;
+    const totalBoughtQuantity = symbolTransactions.reduce(
+      (sum, t) => sum + (t.quantity > 0 ? t.quantity : 0),
+      0
+    );
+    const avgPrice =
+      totalBoughtQuantity > 0 ? totalValue / totalBoughtQuantity : 0;
+    const status: "Open" | "Closed" = totalQuantity === 0 ? "Closed" : "Open";
+    const profitLoss =
+      status === "Closed" && sellPrice
+        ? (sellPrice - avgPrice) * totalBoughtQuantity
+        : undefined;
 
     holdingsMap.set(symbol, {
       symbol,
@@ -114,11 +130,14 @@ export default async function Dashboard() {
     });
   }
 
-  const holdings = Array.from(holdingsMap.values());
+  const holdings = Array.from(holdingsMap.values()).sort((a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime());
 
   // Calculate portfolio summary (only open positions)
-  const openHoldings = holdings.filter(h => h.status === 'Open');
-  const totalValue = openHoldings.reduce((sum, holding) => sum + holding.totalValue, 0);
+  const openHoldings = holdings.filter((h) => h.status === "Open");
+  const totalValue = openHoldings.reduce(
+    (sum, holding) => sum + holding.totalValue,
+    0
+  );
   const totalHoldings = openHoldings.length;
 
   return (
@@ -145,7 +164,11 @@ export default async function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold">
-                ${totalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                $
+                {totalValue.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
               </div>
             </CardContent>
           </Card>
@@ -160,7 +183,7 @@ export default async function Dashboard() {
             <CardContent>
               <div className="text-3xl font-bold">{totalHoldings}</div>
               <p className="text-sm text-muted-foreground mt-1">
-                {totalHoldings === 1 ? 'stock' : 'stocks'}
+                {totalHoldings === 1 ? "stock" : "stocks"}
               </p>
             </CardContent>
           </Card>
@@ -191,11 +214,15 @@ export default async function Dashboard() {
               All Positions
             </CardTitle>
             <CardDescription>
-              Your current holdings and historical positions with buy/sell prices
+              Your current holdings and historical positions with buy/sell
+              prices
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <PositionsTable holdings={holdings} addTransaction={addTransaction} />
+            <PositionsTable
+              holdings={holdings}
+              addTransaction={addTransaction}
+            />
           </CardContent>
         </Card>
       </div>

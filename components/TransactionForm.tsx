@@ -3,17 +3,28 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { StockSearch } from "./StockSearch";
+import { Loader2, Plus } from "lucide-react";
 
 interface TransactionFormProps {
   addTransaction: (formData: FormData) => Promise<void>;
 }
 
 export function TransactionForm({ addTransaction }: TransactionFormProps) {
+  const [symbol, setSymbol] = useState("");
   const [quantity, setQuantity] = useState("");
   const [price, setPrice] = useState("");
+  const [selectedStockPrice, setSelectedStockPrice] = useState<string | null>(
+    null
+  );
   const [total, setTotal] = useState("0.00");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,15 +37,37 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!symbol.trim()) {
+      alert("Please select a stock symbol");
+      return;
+    }
+    if (!quantity.trim()) {
+      alert("Please enter a quantity");
+      return;
+    }
+
     setIsLoading(true);
 
     try {
       const formData = new FormData(e.currentTarget);
+      // Remove old price field, add buyPrice or sellPrice
+      const type = formData.get("type");
+      const price = formData.get("price");
+      formData.delete("price");
+      if (type === "BUY") {
+        formData.append("buyPrice", price as string);
+      } else if (type === "SELL") {
+        formData.append("sellPrice", price as string);
+      }
       await addTransaction(formData);
 
       // Reset form on success
+      setSymbol("");
       setQuantity("");
       setPrice("");
+      setSelectedStockPrice(null);
       setTotal("0.00");
     } catch (error) {
       console.error("Error adding transaction:", error);
@@ -44,15 +77,22 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <form
+      onSubmit={handleSubmit}
+      className="grid grid-cols-2 md:grid-cols-5 gap-4">
       <input type="hidden" name="type" value="BUY" />
+      <input type="hidden" name="symbol" value={symbol} />
       <div className="space-y-2">
-        <Label htmlFor="symbol">Symbol</Label>
-        <Input
-          id="symbol"
-          name="symbol"
-          placeholder="AAPL"
-          required
+        <Label htmlFor="symbol">Stock Symbol</Label>
+        <StockSearch
+          value={symbol}
+          onChange={setSymbol}
+          onSelect={(stock, currentPrice) => {
+            setSymbol(stock.symbol);
+            setSelectedStockPrice(currentPrice);
+            setPrice(currentPrice || "");
+          }}
+          placeholder="Search for AAPL, TSLA, etc."
           disabled={isLoading}
         />
       </div>
@@ -70,31 +110,47 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="price">Price per Share</Label>
+        <Label htmlFor="current-price">Current Market Price</Label>
+        <div
+          id="current-price"
+          className="flex h-10 w-full rounded-md border border-input bg-muted px-3 py-2 text-sm text-muted-foreground">
+          {selectedStockPrice && selectedStockPrice.trim() !== ""
+            ? `$${selectedStockPrice}`
+            : " N/A"}
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="price">Price (Override)</Label>
         <Input
           id="price"
           name="price"
           type="number"
           step="0.01"
-          placeholder="150.00"
+          placeholder={
+            selectedStockPrice
+              ? `Override ${selectedStockPrice}`
+              : "Enter price"
+          }
           value={price}
           onChange={(e) => setPrice(e.target.value)}
-          required
           disabled={isLoading}
         />
       </div>
-      <div className="md:col-span-3 flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
+      <div className="space-y-2 flex flex-col justify-end">
+        <div className="text-sm text-muted-foreground mb-2">
           Total: $<span>{total}</span>
         </div>
-        <Button type="submit" disabled={isLoading}>
+        <Button type="submit" disabled={isLoading} className="w-full">
           {isLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Adding...
             </>
           ) : (
-            "Add Transaction"
+            <>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Transaction
+            </>
           )}
         </Button>
       </div>

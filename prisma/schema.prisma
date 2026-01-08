@@ -22,11 +22,19 @@ model User {
 }
 
 model Transaction {
-  id       Int      @id @default(autoincrement())
-  symbol   String
-  quantity Int
-  price    Decimal
-  date     DateTime
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
+  id         Int      @id @default(autoincrement())
+  symbol     String
+  quantity   Int
+  buyPrice   Decimal
+  buyDate    DateTime
+  sellPrice  Decimal?
+  sellDate   DateTime?
+  type       TransactionType
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+enum TransactionType {
+  BUY
+  SELL
 }
