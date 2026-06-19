@@ -9,9 +9,9 @@ interface CacheEntry<T> {
 
 class ApiCache {
   private cache = new Map<string, CacheEntry<any>>();
-  readonly DEFAULT_TTL = 86400000; // 24 hours for quotes (daily updates)
-  readonly SEARCH_TTL = 86400000; // 24 hours for search results
-  readonly DAILY_TTL = 86400000; // 24 hours for daily data
+  readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 min for live quotes
+  readonly SEARCH_TTL = 7 * 24 * 60 * 60 * 1000; // 7 days for symbol search
+  readonly DAILY_TTL = 12 * 60 * 60 * 1000; // 12 hours for daily series
 
   get<T>(key: string, ttl?: number): T | null {
     const entry = this.cache.get(key);
@@ -85,7 +85,7 @@ export async function getDailyAdjusted(
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
+    const response = await fetch(url, { next: { revalidate: 43200 } });
     const data = await response.json();
 
     if (data.Note) {
@@ -157,7 +157,7 @@ export async function searchStocks(
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
+    const response = await fetch(url, { next: { revalidate: 604800 } });
     const data = await response.json();
 
     if (data.Note) {
@@ -229,7 +229,7 @@ export async function getStockQuote(
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
+    const response = await fetch(url, { next: { revalidate: 300 } });
     const data = await response.json();
 
     if (data.Note) {

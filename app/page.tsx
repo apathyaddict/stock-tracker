@@ -1,12 +1,6 @@
-import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
 import { PositionsTable } from "@/components/PositionsTable";
 import { StockPriceOverview } from "@/components/StockPriceOverview";
-import {
-  TransactionInputSection,
-  addTransaction,
-} from "@/components/TransactionInputSection";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { addTransaction } from "@/components/TransactionInputSection";
 import {
   Card,
   CardContent,
@@ -16,30 +10,28 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import prisma from "@/lib/prisma";
-import { getStockQuote } from "@/lib/stock-api";
 import {
-  Activity,
-  Archive,
-  BarChart3,
-  DollarSign,
-  TrendingUp,
-} from "lucide-react";
+  calculateHoldings,
+  type Holding,
+} from "@/lib/portfolio-calculations";
+import { Archive, TrendingUp } from "lucide-react";
 import { getServerSession } from "next-auth";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { authOptions } from "../auth";
 
-interface Holding {
-  symbol: string;
-  totalQuantity: number;
-  avgPrice: number;
-  totalValue: number;
-  lastTransaction: Date;
-  status: "Open" | "Closed";
-  sellPrice?: number;
-  buyDate: Date | null | undefined;
-  sellDate: Date | null | undefined;
-  profitLoss: number | undefined;
+function toTableHolding(h: Holding) {
+  return {
+    symbol: h.symbol,
+    totalQuantity: h.totalQuantity,
+    avgPrice: h.avgPrice,
+    totalValue: h.costBasis,
+    lastTransaction: h.lastTransaction,
+    status: h.status,
+    sellPrice: h.lastSellPrice,
+    buyDate: h.firstBuyDate ?? null,
+    sellDate: h.lastSellDate ?? null,
+    profitLoss: h.status === "Closed" ? h.realizedPL : undefined,
+  };
 }
 
 export default async function Dashboard() {
@@ -49,134 +41,26 @@ export default async function Dashboard() {
     redirect("/login");
   }
 
-  // Get all transactions for the current user
   const transactions = await prisma.transaction.findMany({
-    where: {
-      userId: session.user.id,
-    },
+    where: { userId: session.user.id },
     orderBy: [{ buyDate: "desc" }, { sellDate: "desc" }],
   });
 
-  // Calculate current holdings by grouping transactions by symbol
-  const holdingsMap = new Map<string, Holding>();
-
-  // Group transactions by symbol first
-  const transactionsBySymbol = new Map<string, typeof transactions>();
-  for (const transaction of transactions) {
-    const symbol = transaction.symbol;
-    if (!transactionsBySymbol.has(symbol)) {
-      transactionsBySymbol.set(symbol, []);
-    }
-    transactionsBySymbol.get(symbol)!.push(transaction);
-  }
-
-  // Process each symbol
-  for (const [symbol, symbolTransactions] of transactionsBySymbol) {
-    // Sort transactions by date for this symbol
-    symbolTransactions.sort((a, b) => {
-      // Use buyDate for buys, sellDate for sells
-      const aDate = a.buyDate ?? a.sellDate;
-      const bDate = b.buyDate ?? b.sellDate;
-      return (aDate?.getTime?.() ?? 0) - (bDate?.getTime?.() ?? 0);
-    });
-
-    let totalQuantity = 0;
-    let totalValue = 0;
-    let buyDate: Date | null | undefined;
-    let sellDate: Date | null | undefined;
-    let sellPrice: number | undefined;
-
-    for (const transaction of symbolTransactions) {
-      const quantity = transaction.quantity;
-      // Use buyPrice for buys, sellPrice for sells, always convert to number
-      const price = Number(transaction.buyPrice ?? transaction.sellPrice ?? 0);
-
-      // Track buy date (first positive transaction)
-      if (quantity > 0 && !buyDate) {
-        buyDate = transaction.buyDate;
-      }
-
-      // Track sell date and price (when selling)
-      if (quantity < 0 && !sellDate) {
-        if (transaction.sellDate) {
-          sellDate = transaction.sellDate;
-        }
-        sellPrice = price;
-      }
-
-      // Only add buy transactions to total value for average price calculation
-      if (quantity > 0) {
-        totalValue += quantity * price;
-      }
-
-      totalQuantity += quantity;
-    }
-
-    const totalBoughtQuantity = symbolTransactions.reduce(
-      (sum, t) => sum + (t.quantity > 0 ? t.quantity : 0),
-      0,
-    );
-    const avgPrice =
-      totalBoughtQuantity > 0
-        ? Number((totalValue / totalBoughtQuantity).toFixed(2))
-        : 0;
-    const status: "Open" | "Closed" = totalQuantity === 0 ? "Closed" : "Open";
-    const profitLoss =
-      status === "Closed" && sellPrice
-        ? Number(((sellPrice - avgPrice) * totalBoughtQuantity).toFixed(2))
-        : undefined;
-
-    holdingsMap.set(symbol, {
-      symbol,
-      totalQuantity: Math.abs(totalQuantity),
-      avgPrice: Number(avgPrice.toFixed(2)),
-      totalValue: Number(Math.abs(totalValue).toFixed(2)),
-      lastTransaction:
-        symbolTransactions[symbolTransactions.length - 1].buyDate ??
-        symbolTransactions[symbolTransactions.length - 1].sellDate ??
-        new Date(),
-      status,
-      sellPrice: sellPrice ? Number(sellPrice.toFixed(2)) : undefined,
-      buyDate,
-      sellDate,
-      profitLoss,
-    });
-  }
-
-  const holdings = Array.from(holdingsMap.values()).sort(
-    (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime(),
+  const holdings = calculateHoldings(
+    transactions.map((t) => ({
+      ...t,
+      buyPrice: t.buyPrice != null ? Number(t.buyPrice) : null,
+      sellPrice: t.sellPrice != null ? Number(t.sellPrice) : null,
+    })),
   );
 
-  // Calculate portfolio summary (only open positions)
   const openHoldings = holdings.filter((h) => h.status === "Open");
-  const totalValue = openHoldings.reduce(
-    (sum, holding) => sum + holding.totalValue,
-    0,
-  );
-  const totalHoldings = openHoldings.length;
-
-  // Get all unique symbols from holdings
+  const closedHoldings = holdings.filter((h) => h.status === "Closed");
   const allSymbols = holdings.map((h) => h.symbol);
-
-  // Fetch current prices for portfolio chart
-  const currentPrices: Record<string, number> = {};
-  await Promise.all(
-    allSymbols.map(async (symbol) => {
-      try {
-        const quote = await getStockQuote(symbol);
-        if (quote?.price) {
-          currentPrices[symbol] = parseFloat(quote.price);
-        }
-      } catch (error) {
-        console.error(`Failed to fetch price for ${symbol}:`, error);
-      }
-    }),
-  );
 
   return (
     <div className="min-h-screen flex flex-col">
       <div className="w-full max-w-7xl mx-auto p-8 space-y-8">
-        {/* Header */}
         <div className="flex justify-between items-center">
           <div>
             <p className="text-muted-foreground text-lg mt-2">
@@ -187,7 +71,6 @@ export default async function Dashboard() {
 
         <StockPriceOverview symbols={allSymbols} />
 
-        {/* Positions with Tabs */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -209,21 +92,20 @@ export default async function Dashboard() {
                   value="archived"
                   className="flex items-center gap-2">
                   <Archive className="h-4 w-4" />
-                  Archived (
-                  {holdings.filter((h) => h.status === "Closed").length})
+                  Archived ({closedHoldings.length})
                 </TabsTrigger>
               </TabsList>
 
               <TabsContent value="active" className="mt-6">
                 <PositionsTable
-                  holdings={openHoldings}
+                  holdings={openHoldings.map(toTableHolding)}
                   addTransaction={addTransaction}
                 />
               </TabsContent>
 
               <TabsContent value="archived" className="mt-6">
                 <PositionsTable
-                  holdings={holdings.filter((h) => h.status === "Closed")}
+                  holdings={closedHoldings.map(toTableHolding)}
                   addTransaction={addTransaction}
                 />
               </TabsContent>

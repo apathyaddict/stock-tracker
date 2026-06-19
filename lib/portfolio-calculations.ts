@@ -1,141 +1,157 @@
 export interface Transaction {
-  id: string;
+  id: number | string;
   symbol: string;
   quantity: number;
-  buyPrice?: number;
-  sellPrice?: number;
-  buyDate?: Date;
-  sellDate?: Date;
-  userId: string;
+  buyPrice?: number | null;
+  sellPrice?: number | null;
+  buyDate?: Date | null;
+  sellDate?: Date | null;
+  userId?: string;
 }
 
 export interface Holding {
   symbol: string;
   totalQuantity: number;
   avgPrice: number;
-  totalValue: number;
+  costBasis: number;
+  marketValue: number;
+  unrealizedPL: number;
+  unrealizedPLPct: number;
+  realizedPL: number;
   lastTransaction: Date;
   status: "Open" | "Closed";
-  sellPrice?: number;
-  buyDate?: Date;
-  sellDate?: Date;
-  profitLoss?: number;
+  firstBuyDate?: Date;
+  lastSellDate?: Date;
+  lastSellPrice?: number;
+  currentPrice?: number;
+}
+
+interface Lot {
+  qty: number;
+  price: number;
+  date?: Date;
+}
+
+function txDate(t: Transaction): Date {
+  return t.buyDate ?? t.sellDate ?? new Date(0);
 }
 
 /**
- * Calculates holdings from a list of transactions
- * Groups transactions by symbol and computes portfolio metrics
+ * FIFO accounting per symbol. Handles multiple buys, partial sells, re-entries.
  */
-export function calculateHoldings(transactions: Transaction[]): Holding[] {
-  const holdingsMap = new Map<string, Holding>();
+function processSymbol(
+  txs: Transaction[],
+  currentPrice?: number,
+): Omit<Holding, "symbol"> {
+  const sorted = [...txs].sort(
+    (a, b) => txDate(a).getTime() - txDate(b).getTime(),
+  );
 
-  // Group transactions by symbol first
-  const transactionsBySymbol = new Map<string, Transaction[]>();
-  for (const transaction of transactions) {
-    const symbol = transaction.symbol;
-    if (!transactionsBySymbol.has(symbol)) {
-      transactionsBySymbol.set(symbol, []);
+  const lots: Lot[] = [];
+  let realizedPL = 0;
+  let firstBuyDate: Date | undefined;
+  let lastSellDate: Date | undefined;
+  let lastSellPrice: number | undefined;
+
+  for (const t of sorted) {
+    const qty = t.quantity;
+    const price = Number(t.buyPrice ?? t.sellPrice ?? 0);
+
+    if (qty > 0) {
+      lots.push({ qty, price, date: t.buyDate ?? undefined });
+      if (!firstBuyDate && t.buyDate) firstBuyDate = t.buyDate;
+    } else if (qty < 0) {
+      let toSell = -qty;
+      if (t.sellDate) lastSellDate = t.sellDate;
+      lastSellPrice = price;
+      while (toSell > 0 && lots.length > 0) {
+        const lot = lots[0];
+        const take = Math.min(lot.qty, toSell);
+        realizedPL += take * (price - lot.price);
+        lot.qty -= take;
+        toSell -= take;
+        if (lot.qty === 0) lots.shift();
+      }
     }
-    transactionsBySymbol.get(symbol)!.push(transaction);
   }
 
-  // Process each symbol
-  for (const [symbol, symbolTransactions] of transactionsBySymbol) {
-    // Sort transactions by date for this symbol
-    symbolTransactions.sort((a, b) => {
-      // Use buyDate for buys, sellDate for sells
-      const aDate = a.buyDate ?? a.sellDate;
-      const bDate = b.buyDate ?? b.sellDate;
-      return (aDate?.getTime?.() ?? 0) - (bDate?.getTime?.() ?? 0);
-    });
+  const totalQuantity = lots.reduce((s, l) => s + l.qty, 0);
+  const costBasis = lots.reduce((s, l) => s + l.qty * l.price, 0);
+  const avgPrice = totalQuantity > 0 ? costBasis / totalQuantity : 0;
+  const marketValue =
+    currentPrice != null ? currentPrice * totalQuantity : costBasis;
+  const unrealizedPL = currentPrice != null ? marketValue - costBasis : 0;
+  const unrealizedPLPct =
+    currentPrice != null && costBasis > 0 ? (unrealizedPL / costBasis) * 100 : 0;
 
-    const calculation = processSymbolTransactions(symbolTransactions);
+  const last = sorted[sorted.length - 1];
+  return {
+    totalQuantity,
+    avgPrice: round2(avgPrice),
+    costBasis: round2(costBasis),
+    marketValue: round2(marketValue),
+    unrealizedPL: round2(unrealizedPL),
+    unrealizedPLPct: round2(unrealizedPLPct),
+    realizedPL: round2(realizedPL),
+    lastTransaction: txDate(last),
+    status: totalQuantity > 0 ? "Open" : "Closed",
+    firstBuyDate,
+    lastSellDate,
+    lastSellPrice: lastSellPrice != null ? round2(lastSellPrice) : undefined,
+    currentPrice,
+  };
+}
 
-    holdingsMap.set(symbol, {
-      symbol,
-      totalQuantity: Math.abs(calculation.totalQuantity),
-      avgPrice: Number(calculation.avgPrice.toFixed(2)),
-      totalValue: Number(Math.abs(calculation.totalValue).toFixed(2)),
-      lastTransaction:
-        symbolTransactions[symbolTransactions.length - 1].buyDate ??
-        symbolTransactions[symbolTransactions.length - 1].sellDate ??
-        new Date(),
-      status: calculation.status,
-      sellPrice: calculation.sellPrice
-        ? Number(calculation.sellPrice.toFixed(2))
-        : undefined,
-      buyDate: calculation.buyDate,
-      sellDate: calculation.sellDate,
-      profitLoss: calculation.profitLoss,
-    });
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+export function calculateHoldings(
+  transactions: Transaction[],
+  currentPrices: Record<string, number> = {},
+): Holding[] {
+  const bySymbol = new Map<string, Transaction[]>();
+  for (const t of transactions) {
+    const arr = bySymbol.get(t.symbol) ?? [];
+    arr.push(t);
+    bySymbol.set(t.symbol, arr);
   }
 
-  return Array.from(holdingsMap.values()).sort(
+  const out: Holding[] = [];
+  for (const [symbol, txs] of bySymbol) {
+    out.push({ symbol, ...processSymbol(txs, currentPrices[symbol]) });
+  }
+  return out.sort(
     (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime(),
   );
 }
 
-/**
- * Processes transactions for a single symbol to calculate holding metrics
- */
-function processSymbolTransactions(symbolTransactions: Transaction[]) {
-  let totalQuantity = 0;
-  let totalValue = 0;
-  let buyDate: Date | undefined;
-  let sellDate: Date | undefined;
-  let sellPrice: number | undefined;
+export interface PortfolioSummary {
+  totalMarketValue: number;
+  totalCostBasis: number;
+  totalUnrealizedPL: number;
+  totalUnrealizedPLPct: number;
+  totalRealizedPL: number;
+  openCount: number;
+  closedCount: number;
+}
 
-  for (const transaction of symbolTransactions) {
-    const quantity = transaction.quantity;
-    // Use buyPrice for buys, sellPrice for sells, always convert to number
-    const price = Number(transaction.buyPrice ?? transaction.sellPrice ?? 0);
-
-    // Track buy date (first positive transaction)
-    if (quantity > 0 && !buyDate) {
-      buyDate = transaction.buyDate;
-    }
-
-    // Track sell date and price (when selling)
-    if (quantity < 0 && !sellDate) {
-      if (transaction.sellDate) {
-        sellDate = transaction.sellDate;
-      }
-      sellPrice = price;
-    }
-
-    // Only add buy transactions to total value for average price calculation
-    if (quantity > 0) {
-      totalValue += quantity * price;
-    }
-
-    totalQuantity += quantity;
-  }
-
-  const totalBoughtQuantity = symbolTransactions.reduce(
-    (sum, t) => sum + (t.quantity > 0 ? t.quantity : 0),
-    0,
-  );
-
-  const avgPrice =
-    totalBoughtQuantity > 0
-      ? Number((totalValue / totalBoughtQuantity).toFixed(2))
-      : 0;
-
-  const status: "Open" | "Closed" = totalQuantity === 0 ? "Closed" : "Open";
-
-  const profitLoss =
-    status === "Closed" && sellPrice
-      ? Number(((sellPrice - avgPrice) * totalBoughtQuantity).toFixed(2))
-      : undefined;
-
+export function summarizePortfolio(holdings: Holding[]): PortfolioSummary {
+  const open = holdings.filter((h) => h.status === "Open");
+  const totalMarketValue = open.reduce((s, h) => s + h.marketValue, 0);
+  const totalCostBasis = open.reduce((s, h) => s + h.costBasis, 0);
+  const totalUnrealizedPL = open.reduce((s, h) => s + h.unrealizedPL, 0);
+  const totalRealizedPL = holdings.reduce((s, h) => s + h.realizedPL, 0);
   return {
-    totalQuantity,
-    totalValue,
-    buyDate,
-    sellDate,
-    sellPrice,
-    avgPrice,
-    status,
-    profitLoss,
+    totalMarketValue: round2(totalMarketValue),
+    totalCostBasis: round2(totalCostBasis),
+    totalUnrealizedPL: round2(totalUnrealizedPL),
+    totalUnrealizedPLPct:
+      totalCostBasis > 0
+        ? round2((totalUnrealizedPL / totalCostBasis) * 100)
+        : 0,
+    totalRealizedPL: round2(totalRealizedPL),
+    openCount: open.length,
+    closedCount: holdings.filter((h) => h.status === "Closed").length,
   };
 }
