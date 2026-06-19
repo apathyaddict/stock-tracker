@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import prisma from "@/lib/prisma";
 import { authOptions } from "@/auth";
+import prisma from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
@@ -23,7 +23,7 @@ export async function GET() {
     console.error("Error fetching transactions:", error);
     return NextResponse.json(
       { error: "Failed to fetch transactions" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -37,25 +37,18 @@ export async function POST(req: Request) {
     }
 
     const data = await req.json();
-    const {
-      symbol,
-      quantity,
-      buyPrice,
-      buyDate,
-      sellPrice,
-      sellDate,
-      type,
-    } = data;
+    const { symbol, quantity, buyPrice, buyDate, sellPrice, sellDate, type } =
+      data;
 
     // Save transaction to database
     const transaction = await prisma.transaction.create({
       data: {
         symbol,
         quantity: Number(quantity),
-        buyPrice: buyPrice ? Number(buyPrice) : undefined,
-        buyDate: buyDate ? new Date(buyDate) : undefined,
-        sellPrice: sellPrice ? Number(sellPrice) : undefined,
-        sellDate: sellDate ? new Date(sellDate) : undefined,
+        buyPrice: buyPrice ? Number(buyPrice) : null,
+        buyDate: buyDate ? new Date(buyDate) : null,
+        sellPrice: sellPrice ? Number(sellPrice) : null,
+        sellDate: sellDate ? new Date(sellDate) : null,
         type,
         userId: session.user.id,
       },
@@ -66,7 +59,7 @@ export async function POST(req: Request) {
     console.error("Error saving transaction:", error);
     return NextResponse.json(
       { error: "Failed to save transaction" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

@@ -1,33 +1,11 @@
 import { PortfolioGrowthChart } from "@/components/PortfolioGrowthChart";
-import { PositionsTable } from "@/components/PositionsTable";
-import { StockPriceOverview } from "@/components/StockPriceOverview";
-import {
-  TransactionInputSection,
-  addTransaction,
-} from "@/components/TransactionInputSection";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import prisma from "@/lib/prisma";
 import { getStockQuote } from "@/lib/stock-api";
-import {
-  Activity,
-  Archive,
-  BarChart3,
-  DollarSign,
-  TrendingUp,
-} from "lucide-react";
+import { Activity, BarChart3, DollarSign } from "lucide-react";
 import { getServerSession } from "next-auth";
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { authOptions } from "../auth";
+import { authOptions } from "../../auth";
 
 interface Holding {
   symbol: string;
@@ -42,7 +20,7 @@ interface Holding {
   profitLoss: number | undefined;
 }
 
-export default async function Dashboard() {
+export default async function PortfolioPage() {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.id) {
@@ -74,7 +52,6 @@ export default async function Dashboard() {
   for (const [symbol, symbolTransactions] of transactionsBySymbol) {
     // Sort transactions by date for this symbol
     symbolTransactions.sort((a, b) => {
-      // Use buyDate for buys, sellDate for sells
       const aDate = a.buyDate ?? a.sellDate;
       const bDate = b.buyDate ?? b.sellDate;
       return (aDate?.getTime?.() ?? 0) - (bDate?.getTime?.() ?? 0);
@@ -88,15 +65,12 @@ export default async function Dashboard() {
 
     for (const transaction of symbolTransactions) {
       const quantity = transaction.quantity;
-      // Use buyPrice for buys, sellPrice for sells, always convert to number
       const price = Number(transaction.buyPrice ?? transaction.sellPrice ?? 0);
 
-      // Track buy date (first positive transaction)
       if (quantity > 0 && !buyDate) {
         buyDate = transaction.buyDate;
       }
 
-      // Track sell date and price (when selling)
       if (quantity < 0 && !sellDate) {
         if (transaction.sellDate) {
           sellDate = transaction.sellDate;
@@ -104,7 +78,6 @@ export default async function Dashboard() {
         sellPrice = price;
       }
 
-      // Only add buy transactions to total value for average price calculation
       if (quantity > 0) {
         totalValue += quantity * price;
       }
@@ -147,7 +120,6 @@ export default async function Dashboard() {
     (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime(),
   );
 
-  // Calculate portfolio summary (only open positions)
   const openHoldings = holdings.filter((h) => h.status === "Open");
   const totalValue = openHoldings.reduce(
     (sum, holding) => sum + holding.totalValue,
@@ -155,7 +127,6 @@ export default async function Dashboard() {
   );
   const totalHoldings = openHoldings.length;
 
-  // Get all unique symbols from holdings
   const allSymbols = holdings.map((h) => h.symbol);
 
   // Fetch current prices for portfolio chart
@@ -177,59 +148,75 @@ export default async function Dashboard() {
     <div className="min-h-screen flex flex-col">
       <div className="w-full max-w-7xl mx-auto p-8 space-y-8">
         {/* Header */}
-        <div className="flex justify-between items-center">
-          <div>
-            <p className="text-muted-foreground text-lg mt-2">
-              Welcome back, {session.user.name || ""}
-            </p>
-          </div>
+        <div>
+          <h1 className="text-4xl font-bold">Portfolio Analysis</h1>
+          <p className="text-muted-foreground text-lg mt-2">
+            View your portfolio performance over time
+          </p>
         </div>
 
-        <StockPriceOverview symbols={allSymbols} />
+        {/* Portfolio Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Total Portfolio Value
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">
+                $
+                {totalValue.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
-        {/* Positions with Tabs */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-6 w-6" />
-              <h2 className="card-title-main">Positions</h2>
-            </CardTitle>
-            <CardDescription>
-              Track your active positions and view historical transactions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Tabs defaultValue="active" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 max-w-md">
-                <TabsTrigger value="active" className="flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4" />
-                  Active Positions ({openHoldings.length})
-                </TabsTrigger>
-                <TabsTrigger
-                  value="archived"
-                  className="flex items-center gap-2">
-                  <Archive className="h-4 w-4" />
-                  Archived (
-                  {holdings.filter((h) => h.status === "Closed").length})
-                </TabsTrigger>
-              </TabsList>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Total Holdings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{totalHoldings}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {totalHoldings === 1 ? "stock" : "stocks"}
+              </p>
+            </CardContent>
+          </Card>
 
-              <TabsContent value="active" className="mt-6">
-                <PositionsTable
-                  holdings={openHoldings}
-                  addTransaction={addTransaction}
-                />
-              </TabsContent>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Total Transactions
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{transactions.length}</div>
+              <p className="text-sm text-muted-foreground mt-1">
+                total transactions
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
-              <TabsContent value="archived" className="mt-6">
-                <PositionsTable
-                  holdings={holdings.filter((h) => h.status === "Closed")}
-                  addTransaction={addTransaction}
-                />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
+        {/* Portfolio Growth Chart */}
+        {transactions.length > 0 && (
+          <PortfolioGrowthChart
+            transactions={transactions.map((t) => ({
+              ...t,
+              buyPrice: Number(t.buyPrice),
+              sellPrice: t.sellPrice ? Number(t.sellPrice) : null,
+            }))}
+            currentPrices={currentPrices}
+          />
+        )}
       </div>
     </div>
   );

@@ -1,4 +1,10 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Activity, BarChart3, DollarSign, TrendingUp } from "lucide-react";
 
@@ -64,7 +70,9 @@ export function DashboardSkeleton() {
           <CardContent>
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-4 border rounded-lg">
                   <div className="flex items-center space-x-4">
                     <Skeleton className="h-8 w-8 rounded" />
                     <div>
@@ -111,7 +119,8 @@ export function DashboardSkeleton() {
               <h2 className="card-title-main">Portfolio</h2>
             </CardTitle>
             <CardDescription>
-              Your current holdings and historical positions with buy/sell prices
+              Your current holdings and historical positions with buy/sell
+              prices
             </CardDescription>
           </CardHeader>
           <CardContent>

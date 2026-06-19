@@ -1,18 +1,18 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import { getStockQuote, searchStocks, StockQuote } from "@/lib/stock-api";
 import { ColumnDef } from "@tanstack/react-table";
-import { TrendingUp, TrendingDown, Minus, RefreshCw } from "lucide-react";
-import { getStockQuote, StockQuote, searchStocks } from "@/lib/stock-api";
+import { Minus, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
 import { StockPriceOverviewSkeleton } from "./StockPriceOverviewSkeleton";
 
 // Will accept an array of symbols and display their current price and daily change
@@ -36,6 +36,8 @@ export const StockPriceOverview: React.FC<StockPriceOverviewProps> = ({
   const memoSymbols = useMemo(() => [...symbols], [symbols]);
   const [quotes, setQuotes] = useState<Record<string, StockQuote | null>>({});
   const [names, setNames] = useState<Record<string, string>>({});
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [isStale, setIsStale] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedSymbols, setFailedSymbols] = useState<string[]>([]);
@@ -64,7 +66,7 @@ export const StockPriceOverview: React.FC<StockPriceOverviewProps> = ({
             nameResults[symbol] = symbol;
             failures.push(symbol);
           }
-        })
+        }),
       );
       setQuotes(results);
       setNames(nameResults);
@@ -142,8 +144,8 @@ export const StockPriceOverview: React.FC<StockPriceOverviewProps> = ({
                 color: isUp
                   ? "var(--color-primary)"
                   : isDown
-                  ? "var(--color-destructive)"
-                  : "var(--color-muted-foreground)",
+                    ? "var(--color-destructive)"
+                    : "var(--color-muted-foreground)",
               }}>
               {parseFloat(quote.change).toFixed(2)} (
               {parseFloat(quote.changePercent).toFixed(2)}%)

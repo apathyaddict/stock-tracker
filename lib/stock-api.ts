@@ -1,6 +1,47 @@
 const ALPHA_VANTAGE_API_KEY = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
 const BASE_URL = "https://www.alphavantage.co/query";
 
+// Simple in-memory cache with TTL
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+class ApiCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  readonly DEFAULT_TTL = 86400000; // 24 hours for quotes (daily updates)
+  readonly SEARCH_TTL = 86400000; // 24 hours for search results
+  readonly DAILY_TTL = 86400000; // 24 hours for daily data
+
+  get<T>(key: string, ttl?: number): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const maxAge = ttl !== undefined ? ttl : this.DEFAULT_TTL;
+    const age = Date.now() - entry.timestamp;
+
+    if (age > maxAge && maxAge !== Infinity) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data as T;
+  }
+
+  set<T>(key: string, data: T): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const cache = new ApiCache();
+
 export interface StockSearchResult {
   symbol: string;
   name: string;
@@ -32,12 +73,19 @@ export async function getDailyAdjusted(
     throw new Error("Alpha Vantage API key not configured");
   }
 
+  // Check cache first
+  const cacheKey = `daily_${symbol}`;
+  const cached = cache.get<DailyAdjustedData[]>(cacheKey, cache.DAILY_TTL);
+  if (cached) {
+    return cached;
+  }
+
   const url = `${BASE_URL}?function=TIME_SERIES_DAILY_ADJUSTED&symbol=${encodeURIComponent(
     symbol
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
     const data = await response.json();
 
     if (data.Note) {
@@ -52,7 +100,7 @@ export async function getDailyAdjusted(
       return null;
     }
 
-    return Object.entries(timeSeries).map(([date, values]: [string, any]) => ({
+    const result = Object.entries(timeSeries).map(([date, values]: [string, any]) => ({
       date,
       open: parseFloat(values["1. open"]),
       high: parseFloat(values["2. high"]),
@@ -63,6 +111,10 @@ export async function getDailyAdjusted(
       dividendAmount: parseFloat(values["7. dividend amount"]),
       splitCoefficient: parseFloat(values["8. split coefficient"]),
     }));
+
+    // Cache the result
+    cache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.error("Daily adjusted error:", error);
     throw error;
@@ -93,12 +145,19 @@ export async function searchStocks(
     return [];
   }
 
+  // Check cache first
+  const cacheKey = `search_${query.toLowerCase()}`;
+  const cached = cache.get<StockSearchResult[]>(cacheKey, cache.SEARCH_TTL);
+  if (cached) {
+    return cached;
+  }
+
   const url = `${BASE_URL}?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(
     query
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
     const data = await response.json();
 
     if (data.Note) {
@@ -141,6 +200,9 @@ export async function searchStocks(
         matchScore: match["9. matchScore"],
       }));
     }
+
+    // Cache the result
+    cache.set(cacheKey, filteredResults);
     return filteredResults;
   } catch (error) {
     console.error("Stock search error:", error);
@@ -155,16 +217,28 @@ export async function getStockQuote(
     throw new Error("Alpha Vantage API key not configured");
   }
 
+  // Check cache first (shorter TTL for quotes - 1 minute)
+  const cacheKey = `quote_${symbol}`;
+  const cached = cache.get<StockQuote>(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const url = `${BASE_URL}?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(
     symbol
   )}&apikey=${ALPHA_VANTAGE_API_KEY}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { next: { revalidate: 86400 } }); // Cache for 24 hours
     const data = await response.json();
 
     if (data.Note) {
-      // API rate limit message
+      // API rate limit message - return cached data if available even if expired
+      const expiredCache = cache.get<StockQuote>(cacheKey, Infinity);
+      if (expiredCache) {
+        console.warn("API rate limit hit, using stale cache for", symbol);
+        return expiredCache;
+      }
       throw new Error("API rate limit exceeded. Please try again later.");
     }
 
@@ -177,7 +251,7 @@ export async function getStockQuote(
       return null;
     }
 
-    return {
+    const result = {
       symbol: quote["01. symbol"],
       open: quote["02. open"],
       high: quote["03. high"],
@@ -189,6 +263,10 @@ export async function getStockQuote(
       change: quote["09. change"],
       changePercent: quote["10. change percent"],
     };
+
+    // Cache the result
+    cache.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.error("Stock quote error:", error);
     throw error;

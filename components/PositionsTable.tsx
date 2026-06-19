@@ -19,6 +19,7 @@ import {
 import { Loader2, TrendingUp, TrendingDown, BarChart3 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface Holding {
   symbol: string;
@@ -28,8 +29,8 @@ interface Holding {
   lastTransaction: Date;
   status: "Open" | "Closed";
   sellPrice?: number;
-  buyDate?: Date;
-  sellDate?: Date;
+  buyDate?: Date | null;
+  sellDate?: Date | null;
   profitLoss?: number;
 }
 
@@ -123,7 +124,11 @@ export function PositionsTable({
       accessorKey: "symbol",
       header: "Name",
       cell: ({ row }) => (
-        <div className="font-medium">{row.getValue("symbol")}</div>
+        <Link href={`/stock/${row.getValue("symbol")}`}>
+          <div className="font-medium hover:text-primary hover:underline cursor-pointer">
+            {row.getValue("symbol")}
+          </div>
+        </Link>
       ),
     },
     {
@@ -193,17 +198,27 @@ export function PositionsTable({
       cell: ({ row }) => {
         const profitLoss = row.getValue<number | undefined>("profitLoss");
         if (profitLoss === undefined) return "-";
+
+        const sellPrice = row.original.sellPrice;
+        const avgPrice = row.original.avgPrice;
+        const profitLossPercent = avgPrice > 0 && sellPrice ? ((sellPrice - avgPrice) / avgPrice) * 100 : 0;
+
         return (
-          <div className="flex items-center gap-1">
-            {profitLoss >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-primary" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            )}
-            <span
-              className={profitLoss >= 0 ? "text-primary" : "text-destructive"}>
-              ${Math.abs(profitLoss).toFixed(2)}
-            </span>
+          <div>
+            <div className="flex items-center gap-1">
+              {profitLoss >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-primary" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              )}
+              <span
+                className={profitLoss >= 0 ? "text-primary" : "text-destructive"}>
+                ${Math.abs(profitLoss).toFixed(2)}
+              </span>
+            </div>
+            <p className={`text-xs ${profitLoss >= 0 ? "text-primary" : "text-destructive"}`}>
+              {profitLoss >= 0 ? "+" : ""}{profitLossPercent.toFixed(2)}%
+            </p>
           </div>
         );
       },
@@ -221,20 +236,29 @@ export function PositionsTable({
         const potentialPL =
           (currentPriceNum - row.original.avgPrice) *
           row.original.totalQuantity;
+        const potentialPLPercent =
+          row.original.avgPrice > 0
+            ? (potentialPL / (row.original.avgPrice * row.original.totalQuantity)) * 100
+            : 0;
 
         return (
-          <div className="flex items-center gap-1">
-            {potentialPL >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-primary" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-destructive" />
-            )}
-            <span
-              className={
-                potentialPL >= 0 ? "text-primary" : "text-destructive"
-              }>
-              ${Math.abs(potentialPL).toFixed(2)}
-            </span>
+          <div>
+            <div className="flex items-center gap-1">
+              {potentialPL >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-primary" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-destructive" />
+              )}
+              <span
+                className={
+                  potentialPL >= 0 ? "text-primary" : "text-destructive"
+                }>
+                ${Math.abs(potentialPL).toFixed(2)}
+              </span>
+            </div>
+            <p className={`text-xs ${potentialPL >= 0 ? "text-primary" : "text-destructive"}`}>
+              {potentialPL >= 0 ? "+" : ""}{potentialPLPercent.toFixed(2)}%
+            </p>
           </div>
         );
       },

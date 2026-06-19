@@ -14,8 +14,6 @@ import { useState, useEffect } from "react";
 import { StockSearch } from "./StockSearch";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { useToast } from "./Toast";
-import { getErrorMessage } from "./ErrorBoundary";
 
 interface TransactionFormProps {
   addTransaction: (formData: FormData) => Promise<void>;
@@ -94,7 +92,7 @@ export function TransactionForm({ addTransaction }: TransactionFormProps) {
           onChange={setSymbol}
           onSelect={(stock, currentPrice) => {
             setSymbol(stock.symbol);
-            setSelectedStockPrice(currentPrice);
+            setSelectedStockPrice(currentPrice || null);
             setPrice(currentPrice || "");
           }}
           placeholder="Search for AAPL, TSLA, etc."

@@ -61,7 +61,9 @@ export function calculateHoldings(transactions: Transaction[]): Holding[] {
         symbolTransactions[symbolTransactions.length - 1].sellDate ??
         new Date(),
       status: calculation.status,
-      sellPrice: calculation.sellPrice ? Number(calculation.sellPrice.toFixed(2)) : undefined,
+      sellPrice: calculation.sellPrice
+        ? Number(calculation.sellPrice.toFixed(2))
+        : undefined,
       buyDate: calculation.buyDate,
       sellDate: calculation.sellDate,
       profitLoss: calculation.profitLoss,
@@ -69,7 +71,7 @@ export function calculateHoldings(transactions: Transaction[]): Holding[] {
   }
 
   return Array.from(holdingsMap.values()).sort(
-    (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime()
+    (a, b) => b.lastTransaction.getTime() - a.lastTransaction.getTime(),
   );
 }
 
@@ -111,18 +113,20 @@ function processSymbolTransactions(symbolTransactions: Transaction[]) {
 
   const totalBoughtQuantity = symbolTransactions.reduce(
     (sum, t) => sum + (t.quantity > 0 ? t.quantity : 0),
-    0
+    0,
   );
 
-  const avgPrice = totalBoughtQuantity > 0
-    ? Number((totalValue / totalBoughtQuantity).toFixed(2))
-    : 0;
+  const avgPrice =
+    totalBoughtQuantity > 0
+      ? Number((totalValue / totalBoughtQuantity).toFixed(2))
+      : 0;
 
   const status: "Open" | "Closed" = totalQuantity === 0 ? "Closed" : "Open";
 
-  const profitLoss = status === "Closed" && sellPrice
-    ? Number(((sellPrice - avgPrice) * totalBoughtQuantity).toFixed(2))
-    : undefined;
+  const profitLoss =
+    status === "Closed" && sellPrice
+      ? Number(((sellPrice - avgPrice) * totalBoughtQuantity).toFixed(2))
+      : undefined;
 
   return {
     totalQuantity,

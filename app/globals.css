@@ -180,6 +180,17 @@
     color: var(--primary);
   }
 
+  /* Recharts legend styling */
+  .recharts-legend-wrapper {
+    color: hsl(var(--card-foreground)) !important;
+  }
+
+  .recharts-legend-wrapper text {
+    fill: hsl(var(--card-foreground)) !important;
+    font-size: 14px;
+    font-weight: 500;
+  }
+
   @media (min-width: 768px) {
     body {
       font-size: 18px;

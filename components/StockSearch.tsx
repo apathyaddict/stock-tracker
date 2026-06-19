@@ -113,7 +113,7 @@ export function StockSearch({
     try {
       // Fetch current price for the selected stock
       const quote = await getStockQuote(stock.symbol);
-      const currentPrice = quote?.price || null;
+      const currentPrice = quote?.price || undefined;
 
       onSelect(stock, currentPrice);
       setIsOpen(false);
@@ -121,7 +121,7 @@ export function StockSearch({
     } catch (error) {
       console.error("Error fetching stock price:", error);
       // Still select the stock even if price fetch fails
-      onSelect(stock, null);
+      onSelect(stock, undefined);
       setIsOpen(false);
       setSelectedIndex(-1);
     }
