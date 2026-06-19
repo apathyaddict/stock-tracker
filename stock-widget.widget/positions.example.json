@@ -1,0 +1,5 @@
+[
+  { "symbol": "AAPL", "qty": 10, "buyPrice": 175.50, "buyDate": "2025-08-12" },
+  { "symbol": "MSFT", "qty": 5,  "buyPrice": 412.00, "buyDate": "2025-11-03" },
+  { "symbol": "NVDA", "qty": 8,  "buyPrice": 132.40, "buyDate": "2026-01-22" }
+]

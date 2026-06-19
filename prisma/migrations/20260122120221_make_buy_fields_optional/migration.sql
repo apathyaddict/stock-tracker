@@ -1,3 +1,0 @@
--- AlterTable
-ALTER TABLE "Transaction" ALTER COLUMN "buyDate" DROP NOT NULL,
-ALTER COLUMN "buyPrice" DROP NOT NULL;
